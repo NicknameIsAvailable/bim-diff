@@ -9,7 +9,7 @@ if (args.includes('--help')) {
   console.log('BIM Diff benchmark\nUsage: bim-diff [--headless]\nRequires Node.js 22+. Opens a dedicated Chromium; Ctrl+C stops it.\nReports: ~/Downloads/bim-diff-reports. Servers: loopback ports 4176/4177.');
   process.exit(0);
 }
-if (args.includes('--version')) { console.log('1.0.0'); process.exit(0); }
+if (args.includes('--version')) { console.log('1.0.1'); process.exit(0); }
 if (Number(process.versions.node.split('.')[0]) < 22) { console.error('Install Node.js 22 or newer: https://nodejs.org/'); process.exit(1); }
 if (args.some(a => a !== '--headless')) { console.error('Unknown option. Use --help.'); process.exit(1); }
 const { chromium } = await import('playwright');
