@@ -3,3 +3,10 @@ node_modules/
 *.log
 .env*
 .DS_Store
+
+# Private GraphDoc source must never be included in this benchmark repository.
+packages/*
+!packages/bim-diff-core/
+dist/
+static/
+output/

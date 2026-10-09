@@ -21,9 +21,19 @@
   },
   "scripts": {
     "start": "node bin/launch.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --import tsx --test test/*.test.mjs test/*.test.ts packages/bim-diff-core/test/*.test.ts",
+    "check-types": "tsc --noEmit",
+    "compare": "tsx packages/bim-diff-core/src/cli.ts"
   },
   "dependencies": {
     "playwright": "1.63.0"
+  },
+  "devDependencies": {
+    "fflate": "0.8.3",
+    "react": "19.2.0",
+    "typescript": "5.9.2",
+    "tsx": "4.23.12",
+    "@types/node": "24.6.2",
+    "@types/react": "19.1.0"
   }
 }
