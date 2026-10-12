@@ -20,6 +20,7 @@
   "include": [
     "src",
     "packages/bim-diff-core",
-    "test/*.ts"
+    "test/*.ts",
+    "vite.ui.config.ts"
   ]
 }

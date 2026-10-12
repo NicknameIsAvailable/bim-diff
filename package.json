@@ -23,7 +23,10 @@
     "start": "node bin/launch.mjs",
     "test": "node --import tsx --test test/*.test.mjs test/*.test.ts packages/bim-diff-core/test/*.test.ts",
     "check-types": "tsc --noEmit",
-    "compare": "tsx packages/bim-diff-core/src/cli.ts"
+    "compare": "tsx packages/bim-diff-core/src/cli.ts",
+    "dev:ui": "vite --config vite.ui.config.ts",
+    "build:ui": "vite build --config vite.ui.config.ts",
+    "preview:ui": "vite preview --config vite.ui.config.ts"
   },
   "dependencies": {
     "playwright": "1.63.0"
@@ -34,6 +37,10 @@
     "typescript": "5.9.2",
     "tsx": "4.23.12",
     "@types/node": "24.6.2",
-    "@types/react": "19.1.0"
+    "@types/react": "19.1.0",
+    "react-dom": "19.2.0",
+    "@types/react-dom": "19.1.1",
+    "vite": "6.4.3",
+    "@vitejs/plugin-react": "4.7.0"
   }
 }
