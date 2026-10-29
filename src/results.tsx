@@ -33,6 +33,20 @@ const labels: Record<string, string> = {
   trianglesPeak: "Треугольники · пик на кадр/сцену",
   geometriesPeak: "Геометрии · пик на сцену",
   texturesPeak: "Текстуры · пик на сцену",
+  wasmLoad: "IFC WASM · загрузка модуля",
+  wasmCopy: "IFC WASM · копирование в память",
+  wasmDiff: "IFC WASM · разбор и сравнение",
+  wasmDecode: "IFC WASM · разбор результата",
+  wasmArtifact: "IFC WASM · сборка DiffArtifact",
+  wasmTotal: "IFC WASM · полный diff",
+  wasmMemoryBytes: "IFC WASM · память wasm",
+  unchanged: "IFC WASM · без изменений",
+  added: "IFC WASM · добавлено",
+  removed: "IFC WASM · удалено",
+  modified: "IFC WASM · изменено",
+  unknown: "IFC WASM · неизвестно",
+  recreatedPairs: "IFC WASM · пересозданные пары",
+  ambiguousPairs: "IFC WASM · неоднозначные пары",
 };
 function value(metric?: Metric) {
   if (!metric || metric.value === null) return "Н/Д";

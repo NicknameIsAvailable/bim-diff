@@ -1,0 +1,4 @@
+# Generated release bundles: review the TypeScript sources, not the output.
+public/ifc-preview-app.js -diff
+public/ifc-wasm-method.js -diff
+public/wasm/*.wasm -diff

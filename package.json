@@ -24,6 +24,9 @@
     "test": "node --import tsx --test test/*.test.mjs test/*.test.ts packages/bim-diff-core/test/*.test.ts",
     "check-types": "tsc --noEmit",
     "compare": "tsx packages/bim-diff-core/src/cli.ts",
+    "build:wasm": "node scripts/build-ifc-wasm.mjs",
+    "compare:ifc": "tsx src/cli-ifc-wasm.ts",
+    "bench:ifc": "tsx src/cli-ifc-wasm.ts --bench",
     "dev:ui": "vite --config vite.ui.config.ts",
     "build:ui": "vite build --config vite.ui.config.ts",
     "preview:ui": "vite preview --config vite.ui.config.ts"
@@ -32,15 +35,16 @@
     "playwright": "1.63.0"
   },
   "devDependencies": {
-    "fflate": "0.8.3",
-    "react": "19.2.0",
-    "typescript": "5.9.2",
-    "tsx": "4.23.12",
     "@types/node": "24.6.2",
     "@types/react": "19.1.0",
-    "react-dom": "19.2.0",
     "@types/react-dom": "19.1.1",
-    "vite": "6.4.3",
-    "@vitejs/plugin-react": "4.7.0"
+    "@vitejs/plugin-react": "4.7.0",
+    "esbuild": "0.28.2",
+    "fflate": "0.8.3",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "tsx": "4.23.12",
+    "typescript": "5.9.2",
+    "vite": "6.4.3"
   }
 }

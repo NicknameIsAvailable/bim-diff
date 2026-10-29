@@ -75,6 +75,24 @@ export type Change = {
   left: ElementRef | null;
   right: ElementRef | null;
 };
+export type IfcWasmSummary = {
+  unchanged: number;
+  added: number;
+  removed: number;
+  modified: number;
+  unknown: number;
+};
+export type IfcWasmMethod = {
+  name: "ifc-wasm-v1";
+  recreated: {
+    keyword: string;
+    leftGlobalId: string;
+    rightGlobalId: string;
+  }[];
+  ambiguousPairs: number;
+  summary: IfcWasmSummary;
+  limitations: string[];
+};
 export type DiffArtifact = {
   schemaVersion: 1;
   algorithmVersion: "overlay-v1";
@@ -101,6 +119,8 @@ export type DiffArtifact = {
   options: CompareOptions;
   changes: Change[];
   diagnostics: Diagnostic[];
+  /** Present when the artifact came from an alternative comparison method. */
+  method?: IfcWasmMethod;
 };
 export type OverlayPlan = {
   schemaVersion: 1;

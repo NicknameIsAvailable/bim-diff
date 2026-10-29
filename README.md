@@ -72,6 +72,8 @@ npm pack
 
 - `packages/bim-diff-core/src/` — независимое ядро сравнения на TypeScript: нормализация, хеширование, сопоставление и план наложения. CLI работает в Node.js без GPU.
 - `src/ifczip.ts` — ограниченная распаковка IFCZIP; `cache.ts`, `diff.worker.ts`, `worker-client.ts` — кеш и Worker ядра.
+- `src/ifc-diff-wasm.ts` — загрузка Zig WASM и преобразование его JSON в `DiffArtifact`; `src/ifc-diff.worker.ts` — Worker для WASM-differ.
+- `src/ifc-wasm-benchmark.ts` — метод сравнения `ifc-wasm-v1` для `BenchmarkRunner`.
 - `src/measurement.ts`, `src/results.tsx` — сбор метрик и отображение отчёта; входные данные рендерера описаны локальным контрактом.
 - `bin/` — запуск браузера и системная телеметрия.
 - `test/`, `packages/bim-diff-core/test/` — тесты.
@@ -85,7 +87,22 @@ npm run compare -- left-index.json right-index.json diff.json
 
 CLI принимает подготовленные `ModelIndex`, а не IFC. Контракт находится в `packages/bim-diff-core/src/contracts.ts`.
 
-Коммерческий пакет `document-preview`, его рендерер, сервисы приложения и UI-kit не входят в исходники этого репозитория. React-интерфейс можно собирать отдельно без движка (см. ниже); `npm start` запускает прежний готовый runner из `public/`. WASM относится к стороннему IFC-парсеру, ядро diff написано на TypeScript.
+## IFC WASM · Zig
+
+Дополнительный метод сравнения: STEP-файлы разбирает и сравнивает Zig-ядро, собранное в WebAssembly. Метод сопоставляет `GlobalId` и один уровень параметров сущности; геометрия не тесселируется, поэтому изменение формы или положения внутри связанной сущности не видно. Объекты без `GlobalId` не участвуют. Результат — тот же `DiffArtifact`, что у TypeScript-ядра, с дополнительным полем `method`.
+
+Нужен checkout `ifc` с `src/wasm.zig` и Zig 0.17 рядом с этим репозиторием (или `IFC_DIR`):
+
+```sh
+npm run build:wasm   # zig build wasm, public/wasm/ifc-diff.wasm, public/ifc-wasm-method.js
+npm run compare:ifc -- a.ifc b.ifc out.json
+npm run bench:ifc -- a.ifc b.ifc --repeats 5
+```
+
+`compare:ifc` печатает `DiffArtifact` (или краткую сводку с `--summary`), `bench:ifc` — таблицу этапов WASM. В `npm run dev:ui` метод выбирается в поле «Differ»; `npm start` добавляет то же поле в готовый runner через `public/ifc-wasm-method.js`.
+
+
+Коммерческий пакет `document-preview`, его рендерер, сервисы приложения и UI-kit не входят в исходники этого репозитория. React-интерфейс можно собирать отдельно без движка (см. ниже); `npm start` запускает прежний готовый runner из `public/`. Основное ядро diff написано на TypeScript; WASM используется сторонним IFC-парсером и необязательным Zig-методом сравнения.
 
 ## Разработка React-интерфейса демки
 
@@ -100,9 +117,9 @@ npm run dev:ui
 - `src/results.tsx` — таблицы и детализация отчёта.
 - `src/style.css` — стили, обычные HTML-контролы без UI-kit.
 - `src/ui-contracts.ts` — контракт подключения движка и цвета легенды.
-- `src/main.tsx` — точка входа предпросмотра.
+- `src/main.tsx` — точка входа предпросмотра; подключает метод `ifc-wasm-v1`.
 
-Предпросмотр не выполняет сравнение и не генерирует фиктивные метрики: кнопка запуска отключена, показано пояснение. Для подключения своей реализации хост передаёт функцию:
+Предпросмотр выполняет только сравнение `ifc-wasm-v1`: для этого нужен собранный `public/wasm/ifc-diff.wasm` (`npm run build:wasm`). Выбор `overlay-v1` в предпросмотре возвращает пояснение — этот метод доступен в `npm start`. Для подключения своей реализации хост передаёт функцию:
 
 ```tsx
 import { BenchmarkApp } from "./src/benchmark-app";

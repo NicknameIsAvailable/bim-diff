@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 
-import { overlayColors, type BenchmarkRunner, type ProtocolOptions, type ResearchInput, type ResearchMode } from "./ui-contracts";
+import { overlayColors, type BenchmarkRunner, type DiffMethod, type ProtocolOptions, type ResearchInput, type ResearchMode } from "./ui-contracts";
 import { Results } from "./results";
 
 import type { BenchmarkReport } from "../packages/bim-diff-core/src/index.js";
@@ -27,6 +27,10 @@ export function BenchmarkApp({ runProtocol, fixtureBaseUrl = "./bim-research/", 
   useEffect(() => () => abort.current?.abort(), []);
   const [mode, setMode] = useState<ResearchMode>("overlay-a");
   const [scenario, setScenario] = useState<ProtocolOptions["scenario"]>("frag");
+  const [diffMethod, setDiffMethod] = useState<DiffMethod>("overlay-v1");
+  useEffect(() => {
+    if (diffMethod === "ifc-wasm-v1") setScenario("ifc");
+  }, [diffMethod]);
   const [device, setDevice] = useState("");
   const [diagnostic, setDiagnostic] = useState(false);
   const [files, setFiles] = useState<(File | undefined)[]>([]);
@@ -89,6 +93,7 @@ export function BenchmarkApp({ runProtocol, fixtureBaseUrl = "./bim-research/", 
         {
           mode,
           scenario,
+          diffMethod,
           device,
           diagnostic,
           duration: diagnostic ? 1500 : 30000,
@@ -159,6 +164,16 @@ export function BenchmarkApp({ runProtocol, fixtureBaseUrl = "./bim-research/", 
               <option value="ifc">Полный путь от IFC / IFCZIP</option>
               <option value="indexes">Diff готовых индексов</option>
               <option value="cached">Повторное открытие из кеша</option>
+            </select>
+          </label>
+          <label>
+            Differ
+            <select
+              value={diffMethod}
+              onChange={(e) => setDiffMethod(e.target.value as DiffMethod)}
+            >
+              <option value="overlay-v1">Overlay v1 · существующий</option>
+              <option value="ifc-wasm-v1">IFC WASM · Zig</option>
             </select>
           </label>
           <label>

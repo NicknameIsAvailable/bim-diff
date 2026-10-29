@@ -1,8 +1,6 @@
 /** Owns one bounded worker, terminating it on abort rather than leaving stale work. */
 export class DiffWorkerClient {
-  private worker = new Worker(new URL("./diff.worker.ts", import.meta.url), {
-    type: "module",
-  });
+  private worker: Worker;
   private sequence = 0;
   private pending = new Map<
     number,
@@ -10,7 +8,12 @@ export class DiffWorkerClient {
   >();
   private closed = false;
   transferMs = 0;
-  constructor(private signal: AbortSignal) {
+  constructor(
+    private signal: AbortSignal,
+    worker: Worker | URL = new URL("./diff.worker.ts", import.meta.url),
+  ) {
+    this.worker =
+      worker instanceof Worker ? worker : new Worker(worker, { type: "module" });
     this.worker.onmessage = ({ data }) => {
       const pending = this.pending.get(data.id);
       this.pending.delete(data.id);

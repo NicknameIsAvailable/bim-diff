@@ -2,6 +2,7 @@ import type { BenchmarkReport } from "../packages/bim-diff-core/src/index.js";
 
 /** UI-owned contracts. The host supplies the actual benchmark implementation. */
 export type ResearchMode = "single" | "parallel" | "overlay-a" | "overlay-b";
+export type DiffMethod = "overlay-v1" | "ifc-wasm-v1";
 export type ResearchInput = {
   name: string;
   bytes: Uint8Array;
@@ -12,6 +13,7 @@ export type ResearchInput = {
 export type ProtocolOptions = {
   mode: ResearchMode;
   scenario: "ifc" | "frag" | "indexes" | "cached";
+  diffMethod?: DiffMethod;
   duration: number;
   repeats: number;
   device: string;
