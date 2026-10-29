@@ -1,29 +1,51 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
+const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL(".", import.meta.url));
+const webIfcWasm = readFileSync(require.resolve("web-ifc/web-ifc.wasm"));
 const ifcDiffWasm = readFileSync(resolve(root, "public/wasm/ifc-diff.wasm"));
 
-/** `publicDir: false` keeps the historical runner out of the UI build. */
-function ifcWasmAsset(): Plugin {
+// The production runner already ships a web-ifc based IFC -> FRAG worker.
+// Reuse that exact worker instead of bundling a second converter.
+const importWorkerDir = resolve(root, "public/assets");
+const importWorkerName = readdirSync(importWorkerDir).find((name) =>
+  /^import\.worker-.*\.js$/.test(name),
+);
+if (!importWorkerName)
+  throw new Error("public/assets/import.worker-*.js is missing");
+const importWorker = readFileSync(resolve(importWorkerDir, importWorkerName));
+
+/**
+ * The UI keeps `publicDir: false` so the historical runner is never copied
+ * into the new build. These files still have to be reachable in development
+ * and in `dist-ui`; this plugin serves them in dev and emits them on build.
+ */
+function servedAsset(options: {
+  route: string;
+  fileName: string;
+  source: Buffer;
+  contentType: string;
+}): Plugin {
   return {
-    name: "ifc-wasm-asset",
+    name: `served-asset-${options.fileName}`,
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (req.url?.split("?")[0] !== "/wasm/ifc-diff.wasm") return next();
+        if (req.url?.split("?")[0] !== options.route) return next();
         res.statusCode = 200;
-        res.setHeader("Content-Type", "application/wasm");
-        res.end(ifcDiffWasm);
+        res.setHeader("Content-Type", options.contentType);
+        res.end(options.source);
       });
     },
     generateBundle() {
       this.emitFile({
         type: "asset",
-        fileName: "wasm/ifc-diff.wasm",
-        source: ifcDiffWasm,
+        fileName: options.fileName,
+        source: options.source,
       });
     },
   };
@@ -32,7 +54,24 @@ function ifcWasmAsset(): Plugin {
 export default defineConfig({
   plugins: [
     react(),
-    ifcWasmAsset(),
+    servedAsset({
+      route: "/web-ifc/web-ifc.wasm",
+      fileName: "web-ifc/web-ifc.wasm",
+      source: webIfcWasm,
+      contentType: "application/wasm",
+    }),
+    servedAsset({
+      route: "/wasm/ifc-diff.wasm",
+      fileName: "wasm/ifc-diff.wasm",
+      source: ifcDiffWasm,
+      contentType: "application/wasm",
+    }),
+    servedAsset({
+      route: `/assets/${importWorkerName}`,
+      fileName: `assets/${importWorkerName}`,
+      source: importWorker,
+      contentType: "text/javascript",
+    }),
     {
       name: "benchmark-ui-boundary",
       generateBundle() {

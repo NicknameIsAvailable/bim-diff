@@ -74,6 +74,7 @@ npm pack
 - `src/ifczip.ts` — ограниченная распаковка IFCZIP; `cache.ts`, `diff.worker.ts`, `worker-client.ts` — кеш и Worker ядра.
 - `src/ifc-diff-wasm.ts` — загрузка Zig WASM и преобразование его JSON в `DiffArtifact`; `src/ifc-diff.worker.ts` — Worker для WASM-differ.
 - `src/ifc-wasm-benchmark.ts` — метод сравнения `ifc-wasm-v1` для `BenchmarkRunner`.
+- `src/ifc-preview.ts`, `src/ifc-preview-groups.ts`, `src/ifc-preview-import.ts` — 3D-превью: сцены, раскраска по diff и вызов готового `import.worker` для IFC → FRAG.
 - `src/measurement.ts`, `src/results.tsx` — сбор метрик и отображение отчёта; входные данные рендерера описаны локальным контрактом.
 - `bin/` — запуск браузера и системная телеметрия.
 - `test/`, `packages/bim-diff-core/test/` — тесты.
@@ -100,6 +101,17 @@ npm run bench:ifc -- a.ifc b.ifc --repeats 5
 ```
 
 `compare:ifc` печатает `DiffArtifact` (или краткую сводку с `--summary`), `bench:ifc` — таблицу этапов WASM. В `npm run dev:ui` метод выбирается в поле «Differ»; `npm start` добавляет то же поле в готовый runner через `public/ifc-wasm-method.js`.
+
+### 3D-превью `ifc-wasm-v1`
+
+После измеряемых прогонов метод показывает две сцены рядом: слева старая версия, справа новая. Неизменённые элементы остаются видимыми, но приглушены; удалённые подсвечены красным слева, добавленные — зелёным справа, изменённые — фиолетовым слева и жёлтым справа. Подсветка идёт по `GlobalId`, поэтому локальные id Zig-парсера и `web-ifc` могут не совпадать.
+
+Превью использует тот же стек, что старый overlay-viewer: `@thatopen/fragments` + `three` + `web-ifc`. IFC → `.frag` выполняет тот же `import.worker`, который уже используется готовым runner; отдельная копия web-ifc для конвертации не нужна. Затем каждая модель загружается в свою сцену. Это второй проход по файлам, он выполняется после замеров и не входит в `wasmTotal`; метрики `previewTotalMs`, `previewConvertMs`, `previewLoadMs`, `previewHighlightMs`, `previewFragBytes`, `previewGeometries` и `previewTextures` лежат в `summary` отчёта.
+
+До 32 MiB суммарного ввода превью стартует автоматически, для больших файлов показывается кнопка «Показать 3D-превью». Ошибка превью не отменяет отчёт. Изменение только геометрии внутри связанной сущности по-прежнему не видно: differ сравнивает `GlobalId` и параметры, а не тесселяцию.
+
+
+`npm run build:wasm` дополнительно собирает `public/ifc-preview-app.js` и обновляет `public/wasm/ifc-diff.wasm` и `public/wasm/web-ifc.wasm`. Сам `public/ifc-preview-app.js` не хранится в git: его собирает `npm run build:preview`, а `npm pack` делает это автоматически через `prepack`. Отдельные копии `import.worker` и Fragments-worker не создаются: используются уже поставляемые с runner файлы `public/assets/import.worker-*.js` и `public/assets/worker-*.mjs`. В `dev:ui` wasm и import worker отдаются Vite-плагином.
 
 
 Коммерческий пакет `document-preview`, его рендерер, сервисы приложения и UI-kit не входят в исходники этого репозитория. React-интерфейс можно собирать отдельно без движка (см. ниже); `npm start` запускает прежний готовый runner из `public/`. Основное ядро diff написано на TypeScript; WASM используется сторонним IFC-парсером и необязательным Zig-методом сравнения.

@@ -11,3 +11,6 @@ dist/
 static/
 output/
 dist-ui/
+
+# Generated preview bundle; built by npm run build:preview / prepack.
+public/ifc-preview-app.js

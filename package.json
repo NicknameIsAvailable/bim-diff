@@ -10,7 +10,8 @@
     "bin/",
     "public/",
     "README.md",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "public/ifc-preview-app.js"
   ],
   "engines": {
     "node": ">=22"
@@ -29,22 +30,28 @@
     "bench:ifc": "tsx src/cli-ifc-wasm.ts --bench",
     "dev:ui": "vite --config vite.ui.config.ts",
     "build:ui": "vite build --config vite.ui.config.ts",
-    "preview:ui": "vite preview --config vite.ui.config.ts"
+    "preview:ui": "vite preview --config vite.ui.config.ts",
+    "build:preview": "node scripts/build-preview.mjs",
+    "prepack": "npm run build:preview"
   },
   "dependencies": {
     "playwright": "1.63.0"
   },
   "devDependencies": {
+    "@thatopen/fragments": "3.4.6",
     "@types/node": "24.6.2",
     "@types/react": "19.1.0",
     "@types/react-dom": "19.1.1",
+    "@types/three": "0.186.0",
     "@vitejs/plugin-react": "4.7.0",
     "esbuild": "0.28.2",
     "fflate": "0.8.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "three": "0.186.1",
     "tsx": "4.23.12",
     "typescript": "5.9.2",
-    "vite": "6.4.3"
+    "vite": "6.4.3",
+    "web-ifc": "0.0.77"
   }
 }

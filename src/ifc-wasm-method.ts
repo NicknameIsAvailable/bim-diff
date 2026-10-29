@@ -1,11 +1,12 @@
 // Injected into the prebuilt `npm start` runner. The production React bundle
 // does not include a method selector, so this script adds one and intercepts
 // the existing "Запустить" button only when the Zig differ is selected.
-import { sha256 } from "../packages/bim-diff-core/src/index.js";
+import { sha256, type DiffArtifact } from "../packages/bim-diff-core/src/index.js";
 import {
   IfcDiffWasm,
   type IfcWasmCompareResult,
 } from "./ifc-diff-wasm";
+import type { IfcPreviewHandle, IfcPreviewMetrics } from "./ifc-preview";
 
 type Input = { name: string; bytes: Uint8Array };
 type Run = {
@@ -17,11 +18,16 @@ type Run = {
   memoryBytes: number;
 };
 
+/** Total input size below which the preview starts without a click. */
+const previewThresholdBytes = 32 * 1024 ** 2;
+
 let methodSelect: HTMLSelectElement | undefined;
 let panel: HTMLElement | undefined;
 let status: HTMLElement | undefined;
 let running = false;
 let wasm: Promise<IfcDiffWasm> | undefined;
+let activePreview: IfcPreviewHandle | undefined;
+let previewGeneration = 0;
 
 install();
 
@@ -95,6 +101,9 @@ function addControl(fieldset: Element) {
 
 async function run() {
   running = true;
+  previewGeneration += 1;
+  activePreview?.dispose();
+  activePreview = undefined;
   if (status) status.textContent = "IFC WASM: подготовка входов…";
   if (panel) panel.replaceChildren();
   if (panel?.parentElement) panel.parentElement.style.display = "";
@@ -113,6 +122,7 @@ async function run() {
     const repeats = diagnostic ? 1 : 5;
     const totalRuns = 1 + repeats;
     const runs: Run[] = [];
+    let lastArtifact: DiffArtifact | undefined;
     const leftMeta = {
       modelKey: left.name,
       version: "left",
@@ -143,6 +153,7 @@ async function run() {
         true,
       );
       const total = performance.now() - start;
+      lastArtifact = result.artifact;
       runs.push({
         warmup,
         total,
@@ -181,17 +192,98 @@ async function run() {
       limitations: [
         "Сравнивается GlobalId и параметры сущности, не геометрия.",
         "IFC WASM не строит сцену и не измеряет FPS.",
+        "3D-превью строится после замеров, в отдельном времени и памяти; в total оно не входит.",
       ],
     };
 
     if (status)
       status.textContent = `IFC WASM: готово · ${mean.toFixed(1)} ms в среднем`;
     renderPanel(report, runs, measured);
+    if (lastArtifact)
+      void mountPreview(
+        left,
+        right,
+        lastArtifact,
+        previewGeneration,
+        () => renderPanel(report, runs, measured),
+        (metrics) => Object.assign(report.summary, previewSummary(metrics)),
+      );
   } catch (error) {
     if (status) status.textContent = `IFC WASM: ${String(error)}`;
   } finally {
     running = false;
   }
+}
+
+/**
+ * Loads the preview bundle on demand. It is intentionally separate from the
+ * method bundle: the measured path stays small, and a preview failure never
+ * affects the report.
+ */
+async function mountPreview(
+  left: Input,
+  right: Input,
+  artifact: DiffArtifact,
+  generation: number,
+  rerender: () => void,
+  applyMetrics: (metrics: IfcPreviewMetrics) => void,
+) {
+  try {
+    const moduleUrl = new URL("./ifc-preview-app.js", import.meta.url).href;
+    const module = (await import(/* @vite-ignore */ moduleUrl)) as {
+      mountIfcWasmPreview: (
+        options: import("./ifc-preview").IfcPreviewOptions,
+      ) => IfcPreviewHandle;
+    };
+    if (generation !== previewGeneration) return;
+    const viewport = document.querySelector<HTMLElement>(".viewport");
+    if (!viewport) {
+      console.warn("IFC preview: .viewport not found");
+      return;
+    }
+    const totalBytes = left.bytes.byteLength + right.bytes.byteLength;
+    activePreview = module.mountIfcWasmPreview({
+      container: viewport,
+      left: { name: left.name, bytes: left.bytes },
+      right: { name: right.name, bytes: right.bytes },
+      artifact,
+      autoStart: totalBytes <= previewThresholdBytes,
+      onMetrics: (metrics) => {
+        applyMetrics(metrics);
+        rerender();
+      },
+      assets: {
+        fragmentsWorkerUrl: new URL(
+          "./assets/worker-GQlxtHkx.mjs",
+          location.href,
+        ).href,
+        importWorkerUrl: new URL(
+          "./assets/import.worker-DVyIT7Np.js",
+          location.href,
+        ).href,
+        wasmPath: new URL("./wasm/", location.href).href,
+        wasmAbsolute: true,
+      },
+    });
+  } catch (error) {
+    console.warn("IFC preview failed", error);
+  }
+}
+
+function previewSummary(metrics: IfcPreviewMetrics): Record<string, unknown> {
+  return {
+    previewStatus: metrics.status,
+    previewTotalMs: metrics.totalMs,
+    previewConvertMs: metrics.convertMs,
+    previewLoadMs: metrics.loadMs,
+    previewHighlightMs: metrics.highlightMs,
+    previewModels: metrics.models,
+    previewChanged: metrics.changed,
+    previewFragBytes: metrics.fragBytes.left + metrics.fragBytes.right,
+    previewGeometries: metrics.geometries,
+    previewTextures: metrics.textures,
+    previewIncludedInWasmTotal: false,
+  };
 }
 
 function readPair(): string {
@@ -267,7 +359,11 @@ function renderPanel(
   panel.replaceChildren();
   const summary = report.summary as Record<string, number | null>;
   const counts = document.createElement("p");
-  counts.textContent = `unchanged ${summary.unchanged ?? "?"} · added ${summary.added ?? "?"} · removed ${summary.removed ?? "?"} · modified ${summary.modified ?? "?"} · unknown ${summary.unknown ?? "?"} · recreated pairs ${summary.recreatedPairs ?? "?"} · wasm ${summary.wasmMemoryBytes ? (Number(summary.wasmMemoryBytes) / 1048576).toFixed(0) + " MiB" : "?"}`;
+  const preview =
+    summary.previewTotalMs !== undefined && summary.previewTotalMs !== null
+      ? ` · превью ${String(summary.previewStatus ?? "")} ${Math.round(Number(summary.previewTotalMs))} ms (вне замера)`
+      : "";
+  counts.textContent = `unchanged ${summary.unchanged ?? "?"} · added ${summary.added ?? "?"} · removed ${summary.removed ?? "?"} · modified ${summary.modified ?? "?"} · unknown ${summary.unknown ?? "?"} · recreated pairs ${summary.recreatedPairs ?? "?"} · wasm ${summary.wasmMemoryBytes ? (Number(summary.wasmMemoryBytes) / 1048576).toFixed(0) + " MiB" : "?"}${preview}`;
   panel.append(counts);
 
   const table = document.createElement("table");

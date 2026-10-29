@@ -2,6 +2,7 @@ import {
   sha256,
   type BenchmarkReport,
   type BenchmarkRun,
+  type DiffArtifact,
   type JsonValue,
   type Metric,
 } from "../packages/bim-diff-core/src/index.js";
@@ -11,9 +12,11 @@ import type {
   IfcWasmStages,
   IfcWasmSummary,
 } from "./ifc-diff-wasm";
+import type { IfcPreviewHandle, IfcPreviewMetrics } from "./ifc-preview";
 import type { ProtocolOptions, ResearchInput } from "./ui-contracts";
 
 type WorkerResult = {
+  artifact: DiffArtifact;
   summary: IfcWasmSummary;
   recreated: IfcWasmRecreated[];
   ambiguousPairs: number;
@@ -21,16 +24,24 @@ type WorkerResult = {
   stages: IfcWasmStages & { load: number; hash: number };
 };
 
+/** Total input size below which the preview starts without a click. */
+const previewThresholdBytes = 32 * 1024 ** 2;
+
+let activePreview: IfcPreviewHandle | undefined;
+let previewGeneration = 0;
+
 const limitations = [
   "IFC WASM сравнивает GlobalId и один уровень параметров сущности, а не тесселированную геометрию.",
   "Изменение формы или положения внутри связанной сущности этим методом не видно.",
   "Объекты без GlobalId не участвуют в сравнении.",
   "Метрики рендера и камеры для этого метода не собираются: он измеряет только путь IFC → diff.",
+  "3D-превью строится после замеров, в отдельном времени и памяти; в wasmTotal оно не входит.",
 ];
+
 
 /** Runs the Zig wasm differ as a renderer-neutral benchmark method. */
 export async function runIfcWasmProtocol(
-  _container: HTMLElement,
+  container: HTMLElement,
   pair: [ResearchInput, ResearchInput],
   options: ProtocolOptions,
   signal: AbortSignal,
@@ -40,6 +51,12 @@ export async function runIfcWasmProtocol(
   if (pair.some((input) => input.format !== "ifc"))
     throw new Error("IFC WASM поддерживает только .ifc; IFCZIP и FRAG не подходят");
 
+  // A new run owns the viewport: drop the previous preview's workers, GL
+  // contexts and canvases before measuring again.
+  previewGeneration += 1;
+  activePreview?.dispose();
+  activePreview = undefined;
+
   // The direct `new Worker(new URL(...))` shape is what Vite recognizes when
   // it emits the worker chunk.
   const worker = new Worker(
@@ -48,6 +65,7 @@ export async function runIfcWasmProtocol(
   );
   const client = new DiffWorkerClient(signal, worker);
   const runs: BenchmarkRun[] = [];
+  let lastArtifact: DiffArtifact | undefined;
   let lastSummary: IfcWasmSummary | undefined;
   let lastRecreated: IfcWasmRecreated[] = [];
   let lastAmbiguous = 0;
@@ -130,6 +148,7 @@ export async function runIfcWasmProtocol(
         lastRecreated = result.recreated;
         lastAmbiguous = result.ambiguousPairs;
         lastMemory = result.memoryBytes;
+        lastArtifact = result.artifact;
       } catch (error) {
         run.status = "failed";
         run.valid = false;
@@ -164,7 +183,72 @@ export async function runIfcWasmProtocol(
     memoryBytes: lastMemory,
   });
   onReport(report);
+  if (lastArtifact)
+    void mountPreview(
+      container,
+      pair,
+      lastArtifact,
+      signal,
+      report,
+      previewGeneration,
+      onReport,
+    );
   return report;
+}
+
+/**
+ * The preview is deliberately fire-and-forget: measured results are already
+ * complete, and a preview failure must never invalidate the benchmark. Its
+ * metrics are reported separately and never added to `wasmTotal`.
+ */
+async function mountPreview(
+  container: HTMLElement,
+  pair: [ResearchInput, ResearchInput],
+  artifact: DiffArtifact,
+  signal: AbortSignal,
+  report: BenchmarkReport,
+  generation: number,
+  onReport: (report: BenchmarkReport) => void,
+): Promise<void> {
+  try {
+    const { mountBrowserPreview } = await import("./ifc-preview-browser");
+    if (signal.aborted || generation !== previewGeneration) return;
+    const totalBytes = pair[0].bytes.byteLength + pair[1].bytes.byteLength;
+    activePreview = mountBrowserPreview({
+      container,
+      left: { name: pair[0].name, bytes: pair[0].bytes },
+      right: { name: pair[1].name, bytes: pair[1].bytes },
+      artifact,
+      signal,
+      autoStart: totalBytes <= previewThresholdBytes,
+      onMetrics: (metrics) => onReport(withPreviewMetrics(report, metrics)),
+    });
+  } catch (error) {
+    console.warn("IFC preview could not be loaded", error);
+  }
+}
+
+function withPreviewMetrics(
+  report: BenchmarkReport,
+  metrics: IfcPreviewMetrics,
+): BenchmarkReport {
+  return {
+    ...report,
+    summary: {
+      ...report.summary,
+      previewStatus: metrics.status,
+      previewTotalMs: metrics.totalMs,
+      previewConvertMs: metrics.convertMs,
+      previewLoadMs: metrics.loadMs,
+      previewHighlightMs: metrics.highlightMs,
+      previewModels: metrics.models,
+      previewChanged: metrics.changed,
+      previewFragBytes: metrics.fragBytes.left + metrics.fragBytes.right,
+      previewGeometries: metrics.geometries,
+      previewTextures: metrics.textures,
+      previewIncludedInWasmTotal: false,
+    },
+  };
 }
 
 function makeRun(index: number, warmup: boolean): BenchmarkRun {

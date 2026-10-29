@@ -5,10 +5,11 @@
 // IFC_DIR overrides the default sibling checkout at ../ifc.
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync } from "node:fs";
-import { stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { buildPreview } from "./build-preview.mjs";
+import { tsFromJs } from "./esbuild-helpers.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const bimDir = resolve(here, "..");
@@ -25,30 +26,17 @@ mkdirSync(dirname(target), { recursive: true });
 copyFileSync(resolve(ifcDir, "zig-out/bin/ifc-diff.wasm"), target);
 console.log(`copied ifc-diff.wasm -> ${target}`);
 
-const tsFromJs = {
-  // The source tree uses TypeScript's `.js` import extension. esbuild
-  // looks for the literal file, so fall back to the matching `.ts`.
-  name: "ts-from-js",
-  setup(builder) {
-    builder.onResolve({ filter: /^\.\.?\// }, async (args) => {
-      if (!args.path.endsWith(".js") || !args.resolveDir) return;
-      const literal = resolve(args.resolveDir, args.path);
-      try {
-        await stat(literal);
-        return;
-      } catch {
-        /* try the TypeScript source */
-      }
-      const source = literal.replace(/\.js$/, ".ts");
-      try {
-        await stat(source);
-        return { path: source };
-      } catch {
-        return;
-      }
-    });
-  },
-};
+// `dev:ui` serves this wasm through a Vite plugin; `npm start` reads it from
+// public/wasm. The remainder of the preview assets already ship with the
+// prebuilt runner (import.worker-*.js, worker-*.mjs, web-ifc.wasm).
+const webIfcTarget = resolve(bimDir, "public/wasm/web-ifc.wasm");
+copyFileSync(
+  resolve(bimDir, "node_modules/web-ifc/web-ifc.wasm"),
+  webIfcTarget,
+);
+console.log(
+  `copied node_modules/web-ifc/web-ifc.wasm -> ${webIfcTarget}`,
+);
 
 const bundles = [
   ["src/ifc-wasm-method.ts", "public/ifc-wasm-method.js"],
@@ -69,3 +57,5 @@ for (const [entry, output] of bundles) {
   });
   console.log(`bundled ${entry} -> ${outfile}`);
 }
+
+await buildPreview();

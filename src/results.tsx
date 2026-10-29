@@ -53,6 +53,11 @@ function value(metric?: Metric) {
   const n = metric.unit === "bytes" ? metric.value / 1048576 : metric.value;
   return `${n.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ${metric.unit === "bytes" ? "MiB" : metric.unit}`;
 }
+function formatPreviewBytes(bytes: number): string {
+  if (bytes <= 0) return "FRAG н/д";
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(2)} MiB FRAG`;
+  return `${(bytes / 1024).toFixed(0)} KiB FRAG`;
+}
 export function Results({ report }: { report: BenchmarkReport }) {
   const measured = report.runs.filter((run) => !run.warmup);
   return (
@@ -68,6 +73,14 @@ export function Results({ report }: { report: BenchmarkReport }) {
         процессов выделенного Chromium. Н/Д означает отсутствие измерения;
         причина указана в подробностях.
       </p>
+      {report.summary.previewStatus ? (
+        <p>
+          3D-превью: {String(report.summary.previewStatus)} ·{" "}
+          {Math.round(Number(report.summary.previewTotalMs ?? 0))} ms ·{" "}
+          {formatPreviewBytes(Number(report.summary.previewFragBytes ?? 0))} · в
+          wasmTotal не входит
+        </p>
+      ) : null}
       <div className="metrics-scroll">
         <table className="metrics-table">
           <thead>
