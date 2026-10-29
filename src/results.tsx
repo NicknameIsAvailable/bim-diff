@@ -77,8 +77,11 @@ export function Results({ report }: { report: BenchmarkReport }) {
         <p>
           3D-превью: {String(report.summary.previewStatus)} ·{" "}
           {Math.round(Number(report.summary.previewTotalMs ?? 0))} ms ·{" "}
-          {formatPreviewBytes(Number(report.summary.previewFragBytes ?? 0))} · в
-          wasmTotal не входит
+          {formatPreviewBytes(Number(report.summary.previewFragBytes ?? 0))}{" "}
+          {Number(report.summary.previewCacheHits ?? 0) > 0
+            ? `· из кеша ${Number(report.summary.previewCacheHits)}/2 · `
+            : ""}
+          · в wasmTotal не входит
         </p>
       ) : null}
       <div className="metrics-scroll">

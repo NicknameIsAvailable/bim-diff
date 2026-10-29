@@ -110,6 +110,7 @@ npm run bench:ifc -- a.ifc b.ifc --repeats 5
 
 До 32 MiB суммарного ввода превью стартует автоматически, для больших файлов показывается кнопка «Показать 3D-превью». Ошибка превью не отменяет отчёт. Изменение только геометрии внутри связанной сущности по-прежнему не видно: differ сравнивает `GlobalId` и параметры, а не тесселяцию.
 
+Результат IFC → FRAG кешируется в IndexedDB по SHA-256 исходного файла и версии конвертера (`fragments-3.4.6/web-ifc-0.0.77`). Первый показ большой пары остаётся медленным (основное время — тесселяция web-ifc), повторный использует готовый `.frag` и пропускает конвертацию. Кеш ограничен 8 записями и 512 MiB, старые записи удаляются; ошибки кеша игнорируются.
 
 `npm run build:wasm` дополнительно собирает `public/ifc-preview-app.js` и обновляет `public/wasm/ifc-diff.wasm` и `public/wasm/web-ifc.wasm`. Сам `public/ifc-preview-app.js` не хранится в git: его собирает `npm run build:preview`, а `npm pack` делает это автоматически через `prepack`. Отдельные копии `import.worker` и Fragments-worker не создаются: используются уже поставляемые с runner файлы `public/assets/import.worker-*.js` и `public/assets/worker-*.mjs`. В `dev:ui` wasm и import worker отдаются Vite-плагином.
 

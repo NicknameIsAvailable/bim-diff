@@ -243,6 +243,7 @@ function withPreviewMetrics(
       previewHighlightMs: metrics.highlightMs,
       previewModels: metrics.models,
       previewChanged: metrics.changed,
+      previewCacheHits: metrics.cacheHits,
       previewFragBytes: metrics.fragBytes.left + metrics.fragBytes.right,
       previewGeometries: metrics.geometries,
       previewTextures: metrics.textures,

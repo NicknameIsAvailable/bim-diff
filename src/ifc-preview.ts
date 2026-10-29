@@ -6,12 +6,13 @@ import {
   type FragmentsModel,
   type MaterialDefinition,
 } from "@thatopen/fragments";
-import type { DiffArtifact } from "../packages/bim-diff-core/src/index.js";
+import { sha256, type DiffArtifact } from "../packages/bim-diff-core/src/index.js";
 import {
   groupChanges,
   type PreviewSideGroups,
   type PreviewStyle,
 } from "./ifc-preview-groups";
+import { fragmentCacheKey, readFragCache, writeFragCache } from "./ifc-preview-cache";
 import { ImportClient, type ImportAssets } from "./ifc-preview-import";
 import { overlayColors } from "./ui-contracts";
 
@@ -34,6 +35,7 @@ export type IfcPreviewMetrics = {
   geometries: number;
   textures: number;
   changed: number;
+  cacheHits: number;
 };
 
 export type IfcPreviewOptions = {
@@ -227,21 +229,38 @@ export function mountIfcWasmPreview(options: IfcPreviewOptions): IfcPreviewHandl
 
   const run = async () => {
     throwIfAborted(signal);
-    status.textContent = "3D-превью: подготовка геометрии…";
+    status.textContent = "3D-превью: проверка кеша геометрии…";
+    const [leftHash, rightHash] = await Promise.all([
+      sha256(left.bytes),
+      sha256(right.bytes),
+    ]);
+    throwIfAborted(signal);
+
+    let cacheHits = 0;
     const convertStart = performance.now();
     const convertSide = async (
       input: PreviewInput,
+      hash: string,
       label: string,
       index: number,
     ): Promise<Uint8Array> => {
+      const key = fragmentCacheKey(hash);
+      const cached = await readFragCache(key);
+      if (cached) {
+        cacheHits += 1;
+        status.textContent = `3D-превью: геометрия ${index}/2 (${label}) · из кеша`;
+        return cached;
+      }
       const client = (convert ??= new ImportClient(assets));
-      return client.call(input.bytes, signal, (progress) => {
+      const bytes = await client.call(input.bytes, signal, (progress) => {
         status.textContent = `3D-превью: геометрия ${index}/2 (${label}) · ${Math.round(progress * 100)}%`;
       });
+      await writeFragCache(key, bytes);
+      return bytes;
     };
-    const leftFrag = await convertSide(left, "старая", 1);
+    const leftFrag = await convertSide(left, leftHash, "старая", 1);
     throwIfAborted(signal);
-    const rightFrag = await convertSide(right, "новая", 2);
+    const rightFrag = await convertSide(right, rightHash, "новая", 2);
     const convertMs = performance.now() - convertStart;
     convert?.dispose();
     convert = undefined;
@@ -320,6 +339,7 @@ export function mountIfcWasmPreview(options: IfcPreviewOptions): IfcPreviewHandl
         0,
       ),
       changed,
+      cacheHits,
     };
     status.textContent = `3D-превью готово · ${changed} изменений · ${Math.round(metrics.totalMs)} ms вне замера`;
     if (lastRenderError)
@@ -479,6 +499,7 @@ function failed(
     geometries: 0,
     textures: 0,
     changed: 0,
+    cacheHits: 0,
   };
 }
 
